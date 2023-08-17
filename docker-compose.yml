@@ -1,0 +1,65 @@
+version: '3'
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: prj_database
+    restart: on-failure
+    expose:
+      - 5432
+    networks:
+      - api
+    volumes:
+      - database:/var/lib/postgresql/data/
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "todo_user", "-d", "todo_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+    environment:
+      POSTGRES_DB: todo_db
+      POSTGRES_USER: todo_user
+      POSTGRES_PASSWORD: todo_password
+  backend:
+    build: ./backend
+    container_name: prj_backend
+    restart: on-failure
+    networks:
+      - api
+      - web
+    healthcheck:
+      test: curl --fail http://localhost:8000 || exit 1
+      interval: 5s
+      retries: 2
+      timeout: 10s
+    depends_on:
+      database:
+        condition: service_healthy
+    expose:
+      - 8000
+    environment:
+      DATABASE_URL: postgres://todo_user:todo_password@database:5432/todo_db
+
+  frontend:
+    build: ./frontend
+    container_name: prj_frontend
+    restart: on-failure
+    networks:
+      - web
+    healthcheck:
+      test: curl --fail http://localhost:5000 || exit 1
+      interval: 10s
+      retries: 2
+      timeout: 10s
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:5000"
+    environment:
+      BACKEND_URL: http://backend:8000
+
+volumes:
+  database:
+networks:
+  web:
+  api:
